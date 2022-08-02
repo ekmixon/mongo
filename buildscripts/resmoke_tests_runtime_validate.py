@@ -38,7 +38,7 @@ def get_historic_stats(evg_api_config: str, project_id: str, test_files: List[st
                        build_variant: str) -> List[TestStats]:
     """Get historic test stats."""
     evg_api = RetryingEvergreenApi.get_api(config_file=evg_api_config)
-    before_date = datetime.today()
+    before_date = datetime.now()
     after_date = before_date - timedelta(days=LOOK_BACK_NUM_DAYS)
     base_task_name = get_task_name_without_suffix(task_name, build_variant).replace(
         BURN_IN_PREFIX, "")
@@ -93,8 +93,7 @@ def main(resmoke_report_file: str, evg_api_config: str, project_id: str, build_v
         if current_mean < IGNORE_LESS_THAN_SECS:
             continue
 
-        historic_test_stats = historic_stats_map.get(test)
-        if historic_test_stats:
+        if historic_test_stats := historic_stats_map.get(test):
             historic_max = max(historic_test_stats)
             target = historic_max * HISTORIC_MAX_MULTIPLIER
             if current_mean > target:

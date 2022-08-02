@@ -77,8 +77,7 @@ class EnumTypeInfoBase(object, metaclass=ABCMeta):
     def get_enum_deserializer_name(self):
         # type: () -> str
         """Return the name of deserializer function with non-method prefix."""
-        return "::" + common.qualify_cpp_name(self._enum.cpp_namespace,
-                                              self._get_enum_deserializer_name())
+        return f"::{common.qualify_cpp_name(self._enum.cpp_namespace, self._get_enum_deserializer_name())}"
 
     def _get_enum_serializer_name(self):
         # type: () -> str
@@ -89,8 +88,7 @@ class EnumTypeInfoBase(object, metaclass=ABCMeta):
     def get_enum_serializer_name(self):
         # type: () -> str
         """Return the name of serializer function with non-method prefix."""
-        return "::" + common.qualify_cpp_name(self._enum.cpp_namespace,
-                                              self._get_enum_serializer_name())
+        return f"::{common.qualify_cpp_name(self._enum.cpp_namespace, self._get_enum_serializer_name())}"
 
     def _get_enum_extra_data_name(self):
         # type: () -> str
@@ -157,7 +155,9 @@ class EnumTypeInfoBase(object, metaclass=ABCMeta):
         with writer.NamespaceScopeBlock(indented_writer, ['']):
             for enum_value in extra_values:
                 indented_writer.write_line(
-                    common.template_args('// %s' % json.dumps(enum_value.extra_data)))
+                    common.template_args(f'// {json.dumps(enum_value.extra_data)}')
+                )
+
 
                 bson_value = ''.join(
                     [('\\x%02x' % (b)) for b in bson.BSON.encode(enum_value.extra_data)])
@@ -206,7 +206,7 @@ class _EnumTypeInt(EnumTypeInfoBase, metaclass=ABCMeta):
 
     def get_cpp_value_assignment(self, enum_value):
         # type: (ast.EnumValue) -> str
-        return " = %s" % (enum_value.value)
+        return f" = {enum_value.value}"
 
     def get_deserializer_declaration(self):
         # type: () -> str
@@ -343,10 +343,12 @@ class _EnumTypeString(EnumTypeInfoBase, metaclass=ABCMeta):
             with writer.IndentedScopedBlock(indented_writer, "${function_name} {", "}"):
                 for enum_value in self._enum.values:
                     with writer.IndentedScopedBlock(
-                            indented_writer, 'if (value == ${enum_name}::%s) {' % (enum_value.name),
-                            "}"):
+                                            indented_writer, 'if (value == ${enum_name}::%s) {' % (enum_value.name),
+                                            "}"):
                         indented_writer.write_line(
-                            'return %s;' % (_get_constant_enum_name(self._enum, enum_value)))
+                            f'return {_get_constant_enum_name(self._enum, enum_value)};'
+                        )
+
 
                 indented_writer.write_line('MONGO_UNREACHABLE;')
                 indented_writer.write_line('return StringData();')

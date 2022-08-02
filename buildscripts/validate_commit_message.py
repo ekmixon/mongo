@@ -207,7 +207,7 @@ class CommitMessageValidationOrchestrator:
         """
         valid_matches = [valid_pattern.match(message) for valid_pattern in VALID_PATTERNS]
         if any(valid_matches):
-            ticket_matches = [pattern.match(message) for pattern in VALID_PATTERNS[0:2]]
+            ticket_matches = [pattern.match(message) for pattern in VALID_PATTERNS[:2]]
             for match in [ticket_match for ticket_match in ticket_matches if ticket_match]:
                 if not self.validate_ticket(match.group("ticket"), project):
                     print(

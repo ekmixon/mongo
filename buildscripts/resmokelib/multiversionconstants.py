@@ -34,7 +34,7 @@ def generate_mongo_version_file():
     with open(MONGO_VERSION_YAML, 'w') as mongo_version_fh:
         # E.g. res = 'r5.1.0-alpha-597-g8c345c6693\n'
         res = res[1:]  # Remove the leading "r" character.
-        mongo_version_fh.write("mongo_version: " + res)
+        mongo_version_fh.write(f"mongo_version: {res}")
 
 
 def generate_releases_file():
@@ -43,8 +43,9 @@ def generate_releases_file():
     releases_yaml_path = os.path.join("src", "mongo", "util", "version", "releases.yml")
     if not os.path.isfile(releases_yaml_path):
         LOGGER.info(
-            'Skipping yml file generation because file .resmoke_mongo_release_values.yml does not exist at path {}.'
-            .format(releases_yaml_path))
+            f'Skipping yml file generation because file .resmoke_mongo_release_values.yml does not exist at path {releases_yaml_path}.'
+        )
+
         return
 
     shutil.copyfile(releases_yaml_path, RELEASES_YAML)
@@ -99,21 +100,20 @@ class FCVConstantValues(object):
 
 def calculate_fcv_constants():
     """Calculate multiversion constants from data files."""
-    mongo_version_yml_file = open(MONGO_VERSION_YAML, 'r')
-    mongo_version_yml = yaml.safe_load(mongo_version_yml_file)
-    mongo_version = mongo_version_yml['mongo_version']
-    latest = Version(re.match(r'^[0-9]+\.[0-9]+', mongo_version).group(0))
+    with open(MONGO_VERSION_YAML, 'r') as mongo_version_yml_file:
+        mongo_version_yml = yaml.safe_load(mongo_version_yml_file)
+        mongo_version = mongo_version_yml['mongo_version']
+        latest = Version(re.match(r'^[0-9]+\.[0-9]+', mongo_version)[0])
 
-    releases_yml_file = open(RELEASES_YAML, 'r')
-    releases_yml = yaml.safe_load(releases_yml_file)
+        releases_yml_file = open(RELEASES_YAML, 'r')
+        releases_yml = yaml.safe_load(releases_yml_file)
 
-    fcvs = releases_yml['featureCompatibilityVersions']
-    fcvs = list(map(Version, fcvs))
-    lts = releases_yml['longTermSupportReleases']
-    lts = list(map(Version, lts))
-    lower_bound_override = releases_yml.get('generateFCVLowerBoundOverride')
+        fcvs = releases_yml['featureCompatibilityVersions']
+        fcvs = list(map(Version, fcvs))
+        lts = releases_yml['longTermSupportReleases']
+        lts = list(map(Version, lts))
+        lower_bound_override = releases_yml.get('generateFCVLowerBoundOverride')
 
-    mongo_version_yml_file.close()
     releases_yml_file.close()
 
     # Highest release less than latest.
@@ -139,17 +139,17 @@ def calculate_fcv_constants():
 
 def version_str(version):
     """Return a string of the given version in 'MAJOR.MINOR' form."""
-    return '{}.{}'.format(version.major, version.minor)
+    return f'{version.major}.{version.minor}'
 
 
 def tag_str(version):
     """Return a tag for the given version."""
-    return 'requires_fcv_{}{}'.format(version.major, version.minor)
+    return f'requires_fcv_{version.major}{version.minor}'
 
 
 def evg_project_str(version):
     """Return the evergreen project name for the given version."""
-    return 'mongodb-mongo-v{}.{}'.format(version.major, version.minor)
+    return f'mongodb-mongo-v{version.major}.{version.minor}'
 
 
 fcv_constants = calculate_fcv_constants()
@@ -161,13 +161,13 @@ LAST_LTS_FCV = version_str(fcv_constants.last_lts)
 LAST_CONTINUOUS_FCV = version_str(fcv_constants.last_continuous)
 LATEST_FCV = version_str(fcv_constants.latest)
 
-LAST_CONTINUOUS_MONGO_BINARY = "mongo-" + LAST_CONTINUOUS_BIN_VERSION
-LAST_CONTINUOUS_MONGOD_BINARY = "mongod-" + LAST_CONTINUOUS_BIN_VERSION
-LAST_CONTINUOUS_MONGOS_BINARY = "mongos-" + LAST_CONTINUOUS_BIN_VERSION
+LAST_CONTINUOUS_MONGO_BINARY = f"mongo-{LAST_CONTINUOUS_BIN_VERSION}"
+LAST_CONTINUOUS_MONGOD_BINARY = f"mongod-{LAST_CONTINUOUS_BIN_VERSION}"
+LAST_CONTINUOUS_MONGOS_BINARY = f"mongos-{LAST_CONTINUOUS_BIN_VERSION}"
 
-LAST_LTS_MONGO_BINARY = "mongo-" + LAST_LTS_BIN_VERSION
-LAST_LTS_MONGOD_BINARY = "mongod-" + LAST_LTS_BIN_VERSION
-LAST_LTS_MONGOS_BINARY = "mongos-" + LAST_LTS_BIN_VERSION
+LAST_LTS_MONGO_BINARY = f"mongo-{LAST_LTS_BIN_VERSION}"
+LAST_LTS_MONGOD_BINARY = f"mongod-{LAST_LTS_BIN_VERSION}"
+LAST_LTS_MONGOS_BINARY = f"mongos-{LAST_LTS_BIN_VERSION}"
 
 REQUIRES_FCV_TAG_LATEST = tag_str(fcv_constants.latest)
 
@@ -176,8 +176,10 @@ REQUIRES_FCV_TAG_LATEST = tag_str(fcv_constants.latest)
 REQUIRES_FCV_TAG = ",".join([tag_str(fcv) for fcv in fcv_constants.requires_fcv_tag_list])
 
 # Generate evergreen project names for all FCVs less than latest.
-EVERGREEN_PROJECTS = ['mongodb-mongo-master']
-EVERGREEN_PROJECTS.extend([evg_project_str(fcv) for fcv in fcv_constants.fcvs_less_than_latest])
+EVERGREEN_PROJECTS = [
+    'mongodb-mongo-master',
+    *[evg_project_str(fcv) for fcv in fcv_constants.fcvs_less_than_latest],
+]
 
 OLD_VERSIONS = ["last_lts"]
 if LAST_LTS_FCV != LAST_CONTINUOUS_FCV:

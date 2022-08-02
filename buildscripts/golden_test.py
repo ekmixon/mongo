@@ -159,12 +159,16 @@ class GoldenTestApp(object):
         self.vprint(f"Listing outputs in path: '{self.output_parent_path}' " +
                     f"matching '{self.output_name_pattern}'")
 
-        if not os.path.isdir(self.output_parent_path):
-            return []
-        return [
-            o for o in os.listdir(self.output_parent_path) if re.match(self.output_name_regex, o)
-            and os.path.isdir(os.path.join(self.output_parent_path, o))
-        ]
+        return (
+            [
+                o
+                for o in os.listdir(self.output_parent_path)
+                if re.match(self.output_name_regex, o)
+                and os.path.isdir(os.path.join(self.output_parent_path, o))
+            ]
+            if os.path.isdir(self.output_parent_path)
+            else []
+        )
 
     def get_latest_output(self):
         """Return the output name wit most recent created timestamp."""

@@ -41,9 +41,7 @@ class StatusPrinter(object):
     def extract_error(val):
         """Extract the error object (if any) from a Status/StatusWith."""
         error = val['_error']
-        if 'px' in error.type.iterkeys():
-            return error['px']
-        return error
+        return error['px'] if 'px' in error.type.iterkeys() else error
 
     @staticmethod
     def generate_error_details(error):
@@ -62,9 +60,11 @@ class StatusPrinter(object):
     def to_string(self):
         """Return status for printing."""
         error = StatusPrinter.extract_error(self.val)
-        if not error:
-            return 'Status::OK()'
-        return 'Status(%s, %s)' % StatusPrinter.generate_error_details(error)
+        return (
+            'Status(%s, %s)' % StatusPrinter.generate_error_details(error)
+            if error
+            else 'Status::OK()'
+        )
 
 
 class StatusWithPrinter(object):
@@ -77,9 +77,11 @@ class StatusWithPrinter(object):
     def to_string(self):
         """Return status for printing."""
         error = StatusPrinter.extract_error(self.val['_status'])
-        if not error:
-            return 'StatusWith(OK, %s)' % (self.val['_t'])
-        return 'StatusWith(%s, %s)' % StatusPrinter.generate_error_details(error)
+        return (
+            'StatusWith(%s, %s)' % StatusPrinter.generate_error_details(error)
+            if error
+            else f"StatusWith(OK, {self.val['_t']})"
+        )
 
 
 class StringDataPrinter(object):
@@ -147,7 +149,7 @@ class BSONObjPrinter(object):
         """Return BSONObj for printing."""
         # The value has been optimized out.
         if self.size == -1:
-            return "BSONObj @ %s - optimized out" % (self.ptr)
+            return f"BSONObj @ {self.ptr} - optimized out"
 
         ownership = "owned" if self.val['_ownedBuffer']['_buffer']['_holder']['px'] else "unowned"
 
@@ -157,21 +159,10 @@ class BSONObjPrinter(object):
             size = hex(size)
 
         if size == 5:
-            return "%s empty BSONObj @ %s" % (ownership, self.ptr)
+            return f"{ownership} empty BSONObj @ {self.ptr}"
 
-        suffix = ""
-        if not self.is_valid:
-            # Wondering why this is unprintable? See PYTHON-1824. The Python
-            # driver's BSON implementation does not support all possible BSON
-            # datetimes. (specifically any BSON datetime where the year is >
-            # datetime.MAXYEAR (usually 9999)).
-            # Attempting to print any BSONObj that contains an out of range
-            # datetime at any level of the document will cause an exception.
-            # There exists no workaround for this in the driver; not even the
-            # TypeDecoder API works for this because the BSON implementation
-            # errors out early when the date is out of range.
-            suffix = " - unprintable or invalid"
-        return "%s BSONObj %s bytes @ %s%s" % (ownership, size, self.ptr, suffix)
+        suffix = "" if self.is_valid else " - unprintable or invalid"
+        return f"{ownership} BSONObj {size} bytes @ {self.ptr}{suffix}"
 
 
 class OplogEntryPrinter(object):
@@ -189,11 +180,8 @@ class OplogEntryPrinter(object):
     def to_string(self):
         """Return OplogEntry for printing."""
         optime = self.val['_entry']['_opTimeBase']
-        optime_str = "ts(%s, %s)" % (optime['_timestamp']['secs'], optime['_timestamp']['i'])
-        return "OplogEntry(%s, %s, %s, %s)" % (
-            str(self.val['_entry']['_durableReplOperation']['_opType']).split('::')[-1],
-            str(self.val['_entry']['_commandType']).split('::')[-1],
-            self.val['_entry']['_durableReplOperation']['_nss']['_ns'], optime_str)
+        optime_str = f"ts({optime['_timestamp']['secs']}, {optime['_timestamp']['i']})"
+        return f"OplogEntry({str(self.val['_entry']['_durableReplOperation']['_opType']).split('::')[-1]}, {str(self.val['_entry']['_commandType']).split('::')[-1]}, {self.val['_entry']['_durableReplOperation']['_nss']['_ns']}, {optime_str})"
 
 
 class UUIDPrinter(object):
@@ -254,12 +242,12 @@ class RecordIdPrinter(object):
         elif rid_format == 1:
             hex_bytes = [int(self.val['_buffer'][i]) for i in range(8)]
             raw_bytes = bytes(hex_bytes)
-            return "RecordId long: %s" % struct.unpack('l', raw_bytes)[0]
+            return f"RecordId long: {struct.unpack('l', raw_bytes)[0]}"
         elif rid_format == 2:
             str_len = int(self.val["_buffer"][0])
             raw_bytes = [int(self.val['_buffer'][i]) for i in range(1, str_len + 1)]
             hex_bytes = [hex(b & 0xFF)[2:].zfill(2) for b in raw_bytes]
-            return "RecordId small string %d hex bytes: %s" % (str_len, str("".join(hex_bytes)))
+            return "RecordId small string %d hex bytes: %s" % (str_len, "".join(hex_bytes))
         elif rid_format == 3:
             holder_ptr = self.val["_sharedBuffer"]["_buffer"]["_holder"]["px"]
             holder = holder_ptr.dereference()
@@ -268,8 +256,12 @@ class RecordIdPrinter(object):
             start_ptr = (holder_ptr + 1).dereference().cast(gdb.lookup_type("char")).address
             raw_bytes = [int(start_ptr[i]) for i in range(1, str_len + 1)]
             hex_bytes = [hex(b & 0xFF)[2:].zfill(2) for b in raw_bytes]
-            return "RecordId big string %d hex bytes @ %s: %s" % (str_len, holder_ptr + 1,
-                                                                  str("".join(hex_bytes)))
+            return "RecordId big string %d hex bytes @ %s: %s" % (
+                str_len,
+                holder_ptr + 1,
+                "".join(hex_bytes),
+            )
+
         else:
             return "unknown RecordId format: %d" % rid_format
 
@@ -286,8 +278,10 @@ class DecorablePrinter(object):
         self.start = decl_vector["_M_impl"]["_M_start"]
         finish = decl_vector["_M_impl"]["_M_finish"]
         decorable_t = val.type.template_argument(0)
-        decinfo_t = gdb.lookup_type('mongo::DecorationRegistry<{}>::DecorationInfo'.format(
-            str(decorable_t).replace("class", "").strip()))
+        decinfo_t = gdb.lookup_type(
+            f'mongo::DecorationRegistry<{str(decorable_t).replace("class", "").strip()}>::DecorationInfo'
+        )
+
         self.count = int((int(finish) - int(self.start)) / decinfo_t.sizeof)
 
     @staticmethod
@@ -297,7 +291,7 @@ class DecorablePrinter(object):
 
     def to_string(self):
         """Return Decorable for printing."""
-        return "Decorable<%s> with %s elems " % (self.val.type.template_argument(0), self.count)
+        return f"Decorable<{self.val.type.template_argument(0)}> with {self.count} elems "
 
     def children(self):
         """Children."""
@@ -311,13 +305,13 @@ class DecorablePrinter(object):
             # constructor, and do some string manipulations.
             # TODO: abstract out navigating a std::function
             type_name = str(descriptor["constructor"])
-            type_name = type_name[0:len(type_name) - 1]
-            type_name = type_name[0:type_name.rindex(">")]
+            type_name = type_name[:-1]
+            type_name = type_name[:type_name.rindex(">")]
             type_name = type_name[type_name.index("constructAt<"):].replace("constructAt<", "")
 
             # If the type is a pointer type, strip the * at the end.
             if type_name.endswith('*'):
-                type_name = type_name[0:len(type_name) - 1]
+                type_name = type_name[:-1]
             type_name = type_name.rstrip()
 
             # Cast the raw char[] into the actual object that is stored there.
@@ -379,8 +373,11 @@ class WtCursorPrinter(object):
         for field in self.val.type.fields():
             field_val = self.val[field.name]
             if field.name == "flags":
-                yield ("flags", "{} ({})".format(field_val,
-                                                 str(_get_flags(field_val, self.cursor_flags))))
+                yield (
+                    "flags",
+                    f"{field_val} ({str(_get_flags(field_val, self.cursor_flags))})",
+                )
+
             else:
                 yield (field.name, field_val)
 
@@ -414,8 +411,11 @@ class WtSessionImplPrinter(object):
         for field in self.val.type.fields():
             field_val = self.val[field.name]
             if field.name == "flags":
-                yield ("flags", "{} ({})".format(field_val,
-                                                 str(_get_flags(field_val, self.session_flags))))
+                yield (
+                    "flags",
+                    f"{field_val} ({str(_get_flags(field_val, self.session_flags))})",
+                )
+
             else:
                 yield (field.name, field_val)
 
@@ -449,8 +449,7 @@ class WtTxnPrinter(object):
         for field in self.val.type.fields():
             field_val = self.val[field.name]
             if field.name == "flags":
-                yield ("flags", "{} ({})".format(field_val,
-                                                 str(_get_flags(field_val, self.txn_flags))))
+                yield ("flags", f"{field_val} ({str(_get_flags(field_val, self.txn_flags))})")
             else:
                 yield (field.name, field_val)
 
@@ -489,8 +488,7 @@ class AbslHashSetPrinterBase(object):
 
     def to_string(self):
         """Return absl::[node/flat]_hash_set for printing."""
-        return "absl::%s_hash_set<%s> with %s elems " % (
-            self.to_str, self.val.type.template_argument(0), self.val["size_"])
+        return f'absl::{self.to_str}_hash_set<{self.val.type.template_argument(0)}> with {self.val["size_"]} elems '
 
 
 class AbslNodeHashSetPrinter(AbslHashSetPrinterBase):
@@ -502,10 +500,8 @@ class AbslNodeHashSetPrinter(AbslHashSetPrinterBase):
 
     def children(self):
         """Children."""
-        count = 0
-        for val in absl_get_nodes(self.val):
+        for count, val in enumerate(absl_get_nodes(self.val)):
             yield (str(count), val.dereference())
-            count += 1
 
 
 class AbslFlatHashSetPrinter(AbslHashSetPrinterBase):
@@ -517,10 +513,8 @@ class AbslFlatHashSetPrinter(AbslHashSetPrinterBase):
 
     def children(self):
         """Children."""
-        count = 0
-        for val in absl_get_nodes(self.val):
+        for count, val in enumerate(absl_get_nodes(self.val)):
             yield (str(count), val.reference_value())
-            count += 1
 
 
 class AbslHashMapPrinterBase(object):
@@ -538,9 +532,7 @@ class AbslHashMapPrinterBase(object):
 
     def to_string(self):
         """Return absl::[node/flat]_hash_map for printing."""
-        return "absl::%s_hash_map<%s, %s> with %s elems " % (
-            self.to_str, self.val.type.template_argument(0), self.val.type.template_argument(1),
-            self.val["size_"])
+        return f'absl::{self.to_str}_hash_map<{self.val.type.template_argument(0)}, {self.val.type.template_argument(1)}> with {self.val["size_"]} elems '
 
 
 class AbslNodeHashMapPrinter(AbslHashMapPrinterBase):
@@ -694,10 +686,7 @@ def make_inverse_enum_dict(enum_type_name):
     dictionary will contain 'regexMatch' value and not 'mongo::sbe::vm::Builtin::regexMatch'.
     """
     enum_dict = gdb.types.make_enum_dict(gdb.lookup_type(enum_type_name))
-    enum_inverse_dic = dict()
-    for key, value in enum_dict.items():
-        enum_inverse_dic[int(value)] = key.split('::')[-1]  # take last element
-    return enum_inverse_dic
+    return {int(value): key.split('::')[-1] for key, value in enum_dict.items()}
 
 
 def read_as_integer(pmem, size):
@@ -742,7 +731,7 @@ class SbeCodeFragmentPrinter(object):
 
     def to_string(self):
         """Return sbe::vm::CodeFragment for printing."""
-        return "%s" % (self.val.type)
+        return f"{self.val.type}"
 
     # pylint: disable=R0915
     def children(self):
@@ -752,7 +741,11 @@ class SbeCodeFragmentPrinter(object):
         yield '_stackSize', self.val['_stackSize']
 
         yield 'inlined', self.is_inlined
-        yield 'instrs data at', '[{} - {}]'.format(hex(self.pdata), hex(self.pdata + self.size))
+        yield (
+            'instrs data at',
+            f'[{hex(self.pdata)} - {hex(self.pdata + self.size)}]',
+        )
+
         yield 'instrs total size', self.size
 
         # Sizes for types we'll use when parsing the insructions stream.
@@ -771,8 +764,8 @@ class SbeCodeFragmentPrinter(object):
             op_addr = cur_op
             op_tag = read_as_integer(op_addr, 1)
 
-            if not op_tag in self.optags_lookup:
-                yield hex(op_addr), 'unknown op tag: {}'.format(op_tag)
+            if op_tag not in self.optags_lookup:
+                yield (hex(op_addr), f'unknown op tag: {op_tag}')
                 error = True
                 break
             op_name = self.optags_lookup[op_tag]
@@ -783,41 +776,43 @@ class SbeCodeFragmentPrinter(object):
             # Some instructions have extra arguments, embedded into the ops stream.
             args = ''
             if op_name in ['pushLocalVal', 'pushMoveLocalVal', 'pushLocalLambda']:
-                args = 'arg: ' + str(read_as_integer(cur_op, int_size))
+                args = f'arg: {str(read_as_integer(cur_op, int_size))}'
                 cur_op += int_size
             if op_name in ['jmp', 'jmpTrue', 'jmpNothing']:
                 offset = read_as_integer(cur_op, int_size)
                 cur_op += int_size
-                args = 'offset: ' + str(offset) + ', target: ' + hex(cur_op + offset)
+                args = f'offset: {str(offset)}, target: {hex(cur_op + offset)}'
             elif op_name in ['pushConstVal']:
                 tag = read_as_integer(cur_op, tag_size)
                 args = 'tag: ' + self.valuetags_lookup.get(tag, "unknown") + \
-                    ', value: ' + hex(read_as_integer(cur_op + tag_size, value_size))
+                        ', value: ' + hex(read_as_integer(cur_op + tag_size, value_size))
                 cur_op += (tag_size + value_size)
             elif op_name in ['pushAccessVal', 'pushMoveVal']:
-                args = 'accessor: ' + hex(read_as_integer(cur_op, ptr_size))
+                args = f'accessor: {hex(read_as_integer(cur_op, ptr_size))}'
                 cur_op += ptr_size
             elif op_name in ['numConvert']:
                 args = 'convert to: ' + \
-                    self.valuetags_lookup.get(read_as_integer(cur_op, tag_size), "unknown")
+                        self.valuetags_lookup.get(read_as_integer(cur_op, tag_size), "unknown")
                 cur_op += tag_size
             elif op_name in ['typeMatch']:
-                args = 'mask: ' + hex(read_as_integer(cur_op, uint32_size))
+                args = f'mask: {hex(read_as_integer(cur_op, uint32_size))}'
                 cur_op += uint32_size
             elif op_name in ['function', 'functionSmall']:
                 arity_size = \
-                    gdb.lookup_type('mongo::sbe::vm::ArityType').sizeof \
-                    if op_name == 'function' \
-                    else gdb.lookup_type('mongo::sbe::vm::SmallArityType').sizeof
+                        gdb.lookup_type('mongo::sbe::vm::ArityType').sizeof \
+                        if op_name == 'function' \
+                        else gdb.lookup_type('mongo::sbe::vm::SmallArityType').sizeof
                 builtin_id = read_as_integer(cur_op, builtin_size)
                 args = 'builtin: ' + self.builtins_lookup.get(builtin_id, "unknown")
-                args += ' arity: ' + str(read_as_integer(cur_op + builtin_size, arity_size))
+                args += f' arity: {str(read_as_integer(cur_op + builtin_size, arity_size))}'
                 cur_op += (builtin_size + arity_size)
 
-            yield hex(op_addr), '{} ({})'.format(op_name, args)
+            yield (hex(op_addr), f'{op_name} ({args})')
 
-        yield 'instructions count', \
-            instr_count if not error else '? (successfully parsed {})'.format(instr_count)
+        yield (
+            'instructions count',
+            f'? (successfully parsed {instr_count})' if error else instr_count,
+        )
 
 
 def eval_print_fn(val, print_fn_name):
@@ -828,8 +823,7 @@ def eval_print_fn(val, print_fn_name):
     # replace them with a single EOL character so that GDB prints multi-line
     # explains nicely.
     pp_result = print_fn(val)
-    pp_str = str(pp_result).replace("\"", "").replace("\\n", "\n")
-    return pp_str
+    return str(pp_result).replace("\"", "").replace("\\n", "\n")
 
 
 class ABTPrinter(object):
@@ -854,8 +848,8 @@ class ABTPrinter(object):
         gdb.execute("set print repeats 0")  # for "<repeats N times>"
         gdb.execute("set print elements 0")  # for ... on long strings
         res = eval_print_fn(self.val, "_printNode")
-        gdb.execute("set print repeats " + str(prior_repeats))
-        gdb.execute("set print elements " + str(prior_elements))
+        gdb.execute(f"set print repeats {str(prior_repeats)}")
+        gdb.execute(f"set print elements {str(prior_elements)}")
         return res
 
 

@@ -89,7 +89,9 @@ class TestGenerator(testcase.IDLTestcase):
         unittest_idl_file = os.path.join(self._idl_dir, f'{self.idl_files_to_test[0]}.idl')
         if not os.path.exists(unittest_idl_file):
             unittest.skip(
-                "Skipping IDL Generator testing since %s could not be found." % (unittest_idl_file))
+                f"Skipping IDL Generator testing since {unittest_idl_file} could not be found."
+            )
+
             return
 
         for idl_file in self.idl_files_to_test:
@@ -126,11 +128,11 @@ class TestGenerator(testcase.IDLTestcase):
         found = False
         for header_line in header_lines:
             if header_line.find("getValue") > 0 \
-                and header_line.find("const {") > 0 \
-                and header_line.find("const {") == header_line.find("const"):
+                    and header_line.find("const {") > 0 \
+                    and header_line.find("const {") == header_line.find("const"):
                 found = True
 
-        self.assertTrue(found, "Bad Header: " + header)
+        self.assertTrue(found, f"Bad Header: {header}")
 
 
 if __name__ == '__main__':

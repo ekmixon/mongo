@@ -326,7 +326,7 @@ class FieldListEntry(common.SourceLocation):
     def get_should_forward(self):
         """Get the shard-forwarding rule for a generic argument or reply field."""
         assert not (self.forward_to_shards and self.forward_from_shards), \
-            "Only FieldListEntry.forward_to_shards or forward_from_shards should be set"
+                "Only FieldListEntry.forward_to_shards or forward_from_shards should be set"
 
         return self.forward_to_shards or self.forward_from_shards
 

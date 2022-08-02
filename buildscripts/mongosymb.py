@@ -51,7 +51,7 @@ class PathDbgFileResolver(object):
         # TODO: make identifying mongo shared library directory more robust
         if self.mci_build_dir is None and path.startswith("/data/mci/"):
             self.mci_build_dir = path.split("/src/", maxsplit=1)[0]
-        return path if path else self._bin_path_guess
+        return path or self._bin_path_guess
 
 
 class S3BuildidDbgFileResolver(object):
@@ -69,25 +69,27 @@ class S3BuildidDbgFileResolver(object):
         if build_id is None:
             return None
         build_id = build_id.lower()
-        build_id_path = os.path.join(self._cache_dir, build_id + ".debug")
+        build_id_path = os.path.join(self._cache_dir, f"{build_id}.debug")
         if not os.path.exists(build_id_path):
             try:
                 self._get_from_s3(build_id)
             except Exception:  # pylint: disable=broad-except
                 ex = sys.exc_info()[0]
-                sys.stderr.write("Failed to find debug symbols for {} in s3: {}\n".format(
-                    build_id, ex))
+                sys.stderr.write(f"Failed to find debug symbols for {build_id} in s3: {ex}\n")
                 return None
-        if not os.path.exists(build_id_path):
-            return None
-        return build_id_path
+        return build_id_path if os.path.exists(build_id_path) else None
 
     def _get_from_s3(self, build_id):
         """Download debug symbols from S3."""
         subprocess.check_call(
-            ['wget', 'https://s3.amazonaws.com/{}/{}.debug.gz'.format(self._s3_bucket, build_id)],
-            cwd=self._cache_dir)
-        subprocess.check_call(['gunzip', build_id + ".debug.gz"], cwd=self._cache_dir)
+            [
+                'wget',
+                f'https://s3.amazonaws.com/{self._s3_bucket}/{build_id}.debug.gz',
+            ],
+            cwd=self._cache_dir,
+        )
+
+        subprocess.check_call(['gunzip', f"{build_id}.debug.gz"], cwd=self._cache_dir)
 
 
 class CachedResults(object):
@@ -141,10 +143,7 @@ class CachedResults(object):
         :param key: key string
         :return: value for key
         """
-        if self._max_cache_size <= 0:
-            return None
-
-        return self._cached_results.get(key)
+        return None if self._max_cache_size <= 0 else self._cached_results.get(key)
 
 
 class PathResolver(object):
@@ -319,12 +318,7 @@ class PathResolver(object):
                 response = self.http_client.get(f'{self.host}/find_by_id',
                                                 params={'build_id': build_id})
                 if response.status_code != 200:
-                    # if we could not find the path of binary, that might be system library.
-                    # we can try using frame's own `path` data.
-                    # symbolization can succeed only if that binary exists on local
-                    # machine (more specifically: in the given path).
-                    system_path = soinfo.get('path')
-                    if system_path:
+                    if system_path := soinfo.get('path'):
                         sys.stdout.write(
                             f"Could not find path of binary from symbolizer web service. Trying to use the "
                             f"provided path: {system_path}\n")
@@ -487,15 +481,14 @@ def preprocess_frames(dbg_path_resolver, trace_doc, input_format):
         for frame in frames:
             frame["path"] = dbg_path_resolver.get_dbg_file(frame)
     else:
-        raise ValueError('Unknown input format "{}"'.format(input_format))
+        raise ValueError(f'Unknown input format "{input_format}"')
     return frames
 
 
-def classic_output(frames, outfile, **kwargs):  # pylint: disable=unused-argument
+def classic_output(frames, outfile, **kwargs):    # pylint: disable=unused-argument
     """Provide classic output."""
     for frame in frames:
-        symbinfo = frame.get("symbinfo")
-        if symbinfo:
+        if symbinfo := frame.get("symbinfo"):
             for sframe in symbinfo:
                 outfile.write(" {file:s}:{line:d}:{column:d}: {fn:s}\n".format(**sframe))
         else:
@@ -546,8 +539,8 @@ def substitute_stdin(options, resolver):
     signal.signal(signal.SIGINT, signal.SIG_IGN)
 
     print("Live mode activated, waiting for input...")
+    backtrace_indicator = '{"backtrace":'
     while True:
-        backtrace_indicator = '{"backtrace":'
         line = sys.stdin.readline()
         if not line:
             return

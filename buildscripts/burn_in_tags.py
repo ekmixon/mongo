@@ -92,9 +92,9 @@ def _create_evg_build_variant_map(expansions_file_data):
     :param expansions_file_data: Config data file to use.
     :return: Map of base buildvariants to their generated buildvariants.
     """
-    burn_in_tag_build_variants = expansions_file_data["burn_in_tag_buildvariants"]
-
-    if burn_in_tag_build_variants:
+    if burn_in_tag_build_variants := expansions_file_data[
+        "burn_in_tag_buildvariants"
+    ]:
         return {
             base_variant: f"{base_variant}-required"
             for base_variant in burn_in_tag_build_variants.split(" ")
@@ -147,8 +147,9 @@ def _generate_evg_tasks(evergreen_api: EvergreenApi, shrub_project: ShrubProject
         task_id = task_expansions[TASK_ID_EXPANSION]
         change_detector = EvergreenFileChangeDetector(task_id, evergreen_api, os.environ)
         changed_tests = change_detector.find_changed_tests(repos)
-        tests_by_task = create_tests_by_task(build_variant, evg_conf, changed_tests)
-        if tests_by_task:
+        if tests_by_task := create_tests_by_task(
+            build_variant, evg_conf, changed_tests
+        ):
             shrub_build_variant = _generate_evg_build_variant(
                 evg_conf.get_variant(build_variant), run_build_variant,
                 task_expansions["build_variant"])

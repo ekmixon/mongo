@@ -223,10 +223,7 @@ class ToolchainPlatform:
             else:
                 self._tag = ''
 
-        if self._tag:
-            return self._tag
-
-        return None
+        return self._tag or None
 
     def __str__(self) -> str:
         result: str = f"{self.distro}"
@@ -463,8 +460,7 @@ class Toolchains(Mapping[Union[ToolchainReleaseName, str], Toolchain]):
         return self.available[0] or None
 
     def __iter__(self) -> Iterator[str]:
-        for release in set(self.available).union(set(self.configured)):
-            yield release
+        yield from set(self.available).union(set(self.configured))
 
     def __len__(self) -> int:
         return len(list(self.__iter__()))
@@ -559,9 +555,7 @@ class NicerHelpFormatter(argparse.HelpFormatter, _FormatterClass):
             default = self._get_default_metavar_for_optional(action)
             args_string = self._format_args(action, default)
 
-            for option_string in action.option_strings:
-                parts.append(option_string)
-
+            parts.extend(iter(action.option_strings))
             return f"{' '.join(parts)} {args_string}"
 
         return ' '.join(parts)
@@ -574,11 +568,9 @@ class NicerHelpFormatter(argparse.HelpFormatter, _FormatterClass):
             except AttributeError:
                 pass
             else:
-                for subaction in get_subactions():
-                    yield subaction
+                yield from get_subactions()
         else:
-            for subaction in super()._iter_indented_subactions(action):
-                yield subaction
+            yield from super()._iter_indented_subactions(action)
 
     def _metavar_formatter(self, action: argparse.Action,
                            default_metavar: str) -> Callable[[int], Tuple[str, ...]]:
@@ -587,17 +579,12 @@ class NicerHelpFormatter(argparse.HelpFormatter, _FormatterClass):
         elif action.choices is not None:
             choice_strs = [f"{choice}" for choice in action.choices]
             result = f"{' | '.join(choice_strs)}"
-            if action.required:
-                result = f"({result})"
-            else:
-                result = f"[{result}]"
+            result = f"({result})" if action.required else f"[{result}]"
         else:
             result = default_metavar
 
         def _format(tuple_size: int) -> Tuple[str, ...]:
-            if isinstance(result, tuple):
-                return result
-            return (result, ) * tuple_size
+            return result if isinstance(result, tuple) else (result, ) * tuple_size
 
         return _format
 
@@ -612,11 +599,7 @@ class DictChoiceAction(argparse._StoreAction):
             metavar = dest = name
             if aliases:
                 metavar += f" {' | '.join(aliases)}"
-                if self.required:
-                    metavar = f"({metavar})"
-                else:
-                    metavar = f"[{metavar})"
-
+                metavar = f"({metavar})" if self.required else f"[{metavar})"
             super().__init__(option_strings=[], dest=dest, help=help, metavar=metavar)
 
         def __call__(self, parser: argparse.ArgumentParser, namespace: argparse.Namespace,
@@ -660,11 +643,21 @@ class NicerArgumentParser(argparse.ArgumentParser):
                  add_help: bool = True, allow_abbrev: bool = True) -> None:
         """Initialize a NicerParser."""
 
-        super().__init__(prog=prog, usage=usage, description=description, epilog=epilog,
-                         parents=parents if parents else [], formatter_class=NicerHelpFormatter,
-                         prefix_chars=prefix_chars, fromfile_prefix_chars=fromfile_prefix_chars,
-                         argument_default=argument_default, conflict_handler=conflict_handler,
-                         add_help=add_help, allow_abbrev=allow_abbrev)
+        super().__init__(
+            prog=prog,
+            usage=usage,
+            description=description,
+            epilog=epilog,
+            parents=parents or [],
+            formatter_class=NicerHelpFormatter,
+            prefix_chars=prefix_chars,
+            fromfile_prefix_chars=fromfile_prefix_chars,
+            argument_default=argument_default,
+            conflict_handler=conflict_handler,
+            add_help=add_help,
+            allow_abbrev=allow_abbrev,
+        )
+
         self._optionals.title = 'Options'
         self._positionals.title = 'Queries'
 

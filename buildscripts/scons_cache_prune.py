@@ -112,7 +112,7 @@ def prune_cache(cache_path, cache_size_gb, clean_ratio):
             if cache_item.time < os.stat(cache_item.path).st_atime:
                 continue
 
-            to_remove = cache_item.path + ".del"
+            to_remove = f"{cache_item.path}.del"
             try:
                 os.rename(cache_item.path, to_remove)
             except Exception as err:  # pylint: disable=broad-except

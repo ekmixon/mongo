@@ -14,8 +14,7 @@ def get_thresholds(suite: str) -> Dict[str, Union[int, float]]:
         cfg = yaml.safe_load(fh)
 
     thresholds = cfg["defaults"]
-    overrides = cfg["overrides"].get(suite)
-    if overrides:
+    if overrides := cfg["overrides"].get(suite):
         for key, value in overrides.items():
             thresholds[key] = value
 

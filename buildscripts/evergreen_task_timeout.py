@@ -88,11 +88,11 @@ class TimeoutOverrides(BaseModel):
         :param task_name: Task name to check.
         :return: Timeout override if found.
         """
-        overrides = [
-            override for override in self.overrides.get(build_variant, [])
+        if overrides := [
+            override
+            for override in self.overrides.get(build_variant, [])
             if override.task == task_name
-        ]
-        if overrides:
+        ]:
             if len(overrides) > 1:
                 LOGGER.error("Found multiple overrides for the same task",
                              build_variant=build_variant, task=task_name,
@@ -110,9 +110,7 @@ class TimeoutOverrides(BaseModel):
         :return: Exec timeout override if found.
         """
         override = self._lookup_override(build_variant, task_name)
-        if override is not None:
-            return override.get_exec_timeout()
-        return None
+        return override.get_exec_timeout() if override is not None else None
 
     def lookup_idle_override(self, build_variant: str, task_name: str) -> Optional[timedelta]:
         """
@@ -123,9 +121,7 @@ class TimeoutOverrides(BaseModel):
         :return: Idle timeout override if found.
         """
         override = self._lookup_override(build_variant, task_name)
-        if override is not None:
-            return override.get_idle_timeout()
-        return None
+        return override.get_idle_timeout() if override is not None else None
 
 
 def _is_required_build_variant(build_variant: str) -> bool:
@@ -307,9 +303,9 @@ class TaskTimeoutOrchestrator:
         exec_timeout = self.determine_exec_timeout(task, variant, idle_timeout, cli_exec_timeout,
                                                    evg_alias)
 
-        historic_timeout = self.determine_historic_timeout(task, variant, suite_name,
-                                                           exec_timeout_factor)
-        if historic_timeout:
+        if historic_timeout := self.determine_historic_timeout(
+            task, variant, suite_name, exec_timeout_factor
+        ):
             exec_timeout = historic_timeout
 
         output_timeout(exec_timeout, idle_timeout, outfile)

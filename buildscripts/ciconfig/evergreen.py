@@ -22,7 +22,9 @@ def parse_evergreen_file(path, evergreen_binary="evergreen"):
     if evergreen_binary:
         if not distutils.spawn.find_executable(evergreen_binary):
             raise EnvironmentError(
-                "Executable '{}' does not exist or is not in the PATH.".format(evergreen_binary))
+                f"Executable '{evergreen_binary}' does not exist or is not in the PATH."
+            )
+
 
         # Call 'evergreen evaluate path' to pre-process the project configuration file.
         cmd = runcommand.RunCommand(evergreen_binary)
@@ -30,7 +32,7 @@ def parse_evergreen_file(path, evergreen_binary="evergreen"):
         cmd.add_file(path)
         error_code, output = cmd.execute()
         if error_code:
-            raise RuntimeError("Unable to evaluate {}: {}".format(path, output))
+            raise RuntimeError(f"Unable to evaluate {path}: {output}")
         config = yaml.safe_load(output)
     else:
         with open(path, "r") as fstream:
@@ -93,7 +95,7 @@ class EvergreenProjectConfig(object):  # pylint: disable=too-many-instance-attri
 
     def get_task_names_by_tag(self, tag):
         """Return the list of tasks that have the given tag."""
-        return list(task.name for task in self.tasks if tag in task.tags)
+        return [task.name for task in self.tasks if tag in task.tags]
 
 
 class Task(object):
@@ -118,10 +120,14 @@ class Task(object):
 
     def find_func_command(self, func_command):
         """Return the 'func_command' if found, or None."""
-        for command in self.raw.get("commands", []):
-            if command.get("func") == func_command:
-                return command
-        return None
+        return next(
+            (
+                command
+                for command in self.raw.get("commands", [])
+                if command.get("func") == func_command
+            ),
+            None,
+        )
 
     @property
     def generate_resmoke_tasks_command(self):
@@ -195,10 +201,10 @@ class Task(object):
         if command_vars:
             other_args = command_vars.get("resmoke_args", other_args)
 
-        if not suite_name and not other_args:
+        if suite_name or other_args:
+            return f"--suites={suite_name} {other_args}"
+        else:
             return None
-
-        return f"--suites={suite_name} {other_args}"
 
     @property
     def tags(self):
@@ -264,9 +270,15 @@ class Variant(object):
             task_name = task.get("name")
             if task_name in task_group_map:
                 # A task in conf_dict may be a task_group, containing a list of tasks.
-                for task_in_group in task_group_map.get(task_name).tasks:
-                    self.tasks.append(
-                        VariantTask(task_map.get(task_in_group), task.get("distros", run_on), self))
+                self.tasks.extend(
+                    VariantTask(
+                        task_map.get(task_in_group),
+                        task.get("distros", run_on),
+                        self,
+                    )
+                    for task_in_group in task_group_map.get(task_name).tasks
+                )
+
             else:
                 self.tasks.append(
                     VariantTask(task_map.get(task["name"]), task.get("distros", run_on), self))
@@ -327,10 +339,7 @@ class Variant(object):
 
         Return None if this variant does not run the task.
         """
-        for task in self.tasks:
-            if task.name == task_name:
-                return task
-        return None
+        return next((task for task in self.tasks if task.name == task_name), None)
 
     def __str__(self):
         return self.name
@@ -358,24 +367,21 @@ class Variant(object):
 
     def is_asan_build(self) -> bool:
         """Determine if this task is an ASAN build."""
-        san_options = self.expansion("san_options")
-        if san_options:
+        if san_options := self.expansion("san_options"):
             return ASAN_SIGNATURE in san_options
         return False
 
     @property
     def idle_timeout_factor(self) -> Optional[float]:
         """Get the value of idle_timeout_factor expansion or None if not found."""
-        factor = self.expansion("idle_timeout_factor")
-        if factor:
+        if factor := self.expansion("idle_timeout_factor"):
             return float(factor)
         return None
 
     @property
     def exec_timeout_factor(self) -> Optional[float]:
         """Get the value of exec_timeout_factor expansion or None if not found."""
-        factor = self.expansion("exec_timeout_factor")
-        if factor:
+        if factor := self.expansion("exec_timeout_factor"):
             return float(factor)
         return None
 
@@ -406,4 +412,4 @@ class VariantTask(Task):
             return None
         elif test_flags is None:
             return self.resmoke_args
-        return "{} {}".format(resmoke_args, test_flags)
+        return f"{resmoke_args} {test_flags}"

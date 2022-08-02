@@ -204,7 +204,7 @@ class ParserErrorCollection(object):
         print("Errors found while compiling IDL")
         for error_msg in self.to_list():
             print("%s\n\n" % error_msg)
-        print("Found %s errors" % (len(self.to_list())))
+        print(f"Found {len(self.to_list())} errors")
 
     def count(self):
         # type: () -> int
@@ -280,7 +280,7 @@ class ParserContext(object):
     def _is_node_type(self, node, node_name, expected_node_type):
         # type: (Union[yaml.nodes.MappingNode, yaml.nodes.ScalarNode, yaml.nodes.SequenceNode], str, str) -> bool
         """Return True if the yaml node type is expected, otherwise returns False and logs an error."""
-        if not node.id == expected_node_type:
+        if node.id != expected_node_type:
             self._add_node_error(
                 node, ERROR_ID_IS_NODE_TYPE,
                 "Illegal YAML node type '%s' for '%s', expected YAML node type '%s'" %
@@ -302,27 +302,25 @@ class ParserContext(object):
         # type: (Union[yaml.nodes.MappingNode, yaml.nodes.ScalarNode, yaml.nodes.SequenceNode], str) -> bool
         """Return True if this YAML node is a Sequence of Scalars."""
         if self._is_node_type(node, node_name, "sequence"):
-            for seq_node in node.value:
-                if not self.is_scalar_node(seq_node, node_name):
-                    return False
-            return True
+            return all(self.is_scalar_node(seq_node, node_name) for seq_node in node.value)
         return False
 
     def is_sequence_mapping(self, node, node_name):
         # type: (Union[yaml.nodes.MappingNode, yaml.nodes.ScalarNode, yaml.nodes.SequenceNode], str) -> bool
         """Return True if this YAML node is a Sequence of Mappings."""
         if self._is_node_type(node, node_name, "sequence"):
-            for seq_node in node.value:
-                if not self.is_mapping_node(seq_node, node_name):
-                    return False
-            return True
+            return all(
+                self.is_mapping_node(seq_node, node_name)
+                for seq_node in node.value
+            )
+
         return False
 
     def is_scalar_sequence_or_scalar_node(self, node, node_name):
         # type: (Union[yaml.nodes.MappingNode, yaml.nodes.ScalarNode, yaml.nodes.SequenceNode], str) -> bool
         # pylint: disable=invalid-name
         """Return True if the YAML node is a Scalar or Sequence."""
-        if not node.id == "scalar" and not node.id == "sequence":
+        if node.id not in ["scalar", "sequence"]:
             self._add_node_error(
                 node, ERROR_ID_IS_NODE_TYPE_SCALAR_OR_SEQUENCE,
                 "Illegal node type '%s' for '%s', expected either node type 'scalar' or 'sequence'"
@@ -338,7 +336,7 @@ class ParserContext(object):
         # type: (Union[yaml.nodes.MappingNode, yaml.nodes.ScalarNode, yaml.nodes.SequenceNode], str) -> bool
         # pylint: disable=invalid-name
         """Return True if the YAML node is a Scalar or Mapping."""
-        if not node.id == "scalar" and not node.id == "mapping":
+        if node.id not in ["scalar", "mapping"]:
             self._add_node_error(
                 node, ERROR_ID_IS_NODE_TYPE_SCALAR_OR_MAPPING,
                 "Illegal node type '%s' for '%s', expected either node type 'scalar' or 'mapping'" %
@@ -353,7 +351,7 @@ class ParserContext(object):
         if not self._is_node_type(node, node_name, "scalar"):
             return False
 
-        if not (node.value == "true" or node.value == "false"):
+        if node.value not in ["true", "false"]:
             self._add_node_error(
                 node, ERROR_ID_IS_NODE_VALID_BOOL,
                 "Illegal bool value for '%s', expected either 'true' or 'false'." % node_name)
@@ -366,18 +364,13 @@ class ParserContext(object):
         """Convert a scalar to a bool."""
         assert self.is_scalar_bool_node(node, "unknown")
 
-        if node.value == "true":
-            return True
-        return False
+        return node.value == "true"
 
     def get_list(self, node):
         # type: (Union[yaml.nodes.MappingNode, yaml.nodes.ScalarNode, yaml.nodes.SequenceNode]) -> List[str]
         """Get a YAML scalar or sequence node as a list of strings."""
         assert self.is_scalar_sequence_or_scalar_node(node, "unknown")
-        if node.id == "scalar":
-            return [node.value]
-        # Unzip the list of ScalarNode
-        return [v.value for v in node.value]
+        return [node.value] if node.id == "scalar" else [v.value for v in node.value]
 
     def add_duplicate_error(self, node, node_name):
         # type: (yaml.nodes.Node, str) -> None
@@ -973,10 +966,11 @@ class ParserContext(object):
 def _assert_unique_error_messages():
     # type: () -> None
     """Assert that error codes are unique."""
-    error_ids = []
-    for module_member in inspect.getmembers(sys.modules[__name__]):
-        if module_member[0].startswith("ERROR_ID"):
-            error_ids.append(module_member[1])
+    error_ids = [
+        module_member[1]
+        for module_member in inspect.getmembers(sys.modules[__name__])
+        if module_member[0].startswith("ERROR_ID")
+    ]
 
     error_ids_set = set(error_ids)
     if len(error_ids) != len(error_ids_set):

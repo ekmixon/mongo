@@ -80,10 +80,7 @@ def parse_array_type(name):
     name = name[:-1]
 
     # V1 restriction, ban nested array types to reduce scope.
-    if name.startswith("array<") and name.endswith(">"):
-        return None
-
-    return name
+    return None if name.startswith("array<") and name.endswith(">") else name
 
 
 def _zip_scalar(items, obj):
@@ -130,11 +127,13 @@ class SymbolTable(object):
             if item.name == name:
                 ctxt.add_duplicate_symbol_error(location, name, duplicate_class_name, entity_type)
                 return True
-            if entity_type == "command":
-                if name in [item.command_name, item.command_alias if item.command_alias else '']:
-                    ctxt.add_duplicate_symbol_error(location, name, duplicate_class_name,
-                                                    entity_type)
-                    return True
+            if entity_type == "command" and name in [
+                item.command_name,
+                item.command_alias or '',
+            ]:
+                ctxt.add_duplicate_symbol_error(location, name, duplicate_class_name,
+                                                entity_type)
+                return True
 
         return False
 
@@ -203,26 +202,31 @@ class SymbolTable(object):
     def get_struct(self, name):
         # type: (str) -> Struct
         """Get the struct from the SymbolTable's struct list based on the struct name."""
-        for struct in self.structs:
-            if struct.name == name:
-                return struct
-        return None
+        return next((struct for struct in self.structs if struct.name == name), None)
 
     def get_generic_argument_list(self, name):
         # type: (str) -> GenericArgumentList
         """Get a generic argument list from the SymbolTable based on the list name."""
-        for gen_arg_list in self.generic_argument_lists:
-            if gen_arg_list.name == name:
-                return gen_arg_list
-        return None
+        return next(
+            (
+                gen_arg_list
+                for gen_arg_list in self.generic_argument_lists
+                if gen_arg_list.name == name
+            ),
+            None,
+        )
 
     def get_generic_reply_field_list(self, name):
         # type: (str) -> GenericReplyFieldList
         """Get a generic reply field list from the SymbolTable based on the list name."""
-        for gen_reply_field_list in self.generic_reply_field_lists:
-            if gen_reply_field_list.name == name:
-                return gen_reply_field_list
-        return None
+        return next(
+            (
+                gen_reply_field_list
+                for gen_reply_field_list in self.generic_reply_field_lists
+                if gen_reply_field_list.name == name
+            ),
+            None,
+        )
 
     def resolve_type_from_name(self, ctxt, location, field_name, field_type_name):
         # type: (errors.ParserContext, common.SourceLocation, str, str) -> Optional[Union[Enum, Struct, Type]]
@@ -567,9 +571,7 @@ class Privilege(common.SourceLocation):
         location: test.idl: (17, 4), resource_pattern: exact_namespace, action_type: ['find', 'insert', 'update', 'remove'], agg_stage: None
         """
         location = super(Privilege, self).__str__()
-        msg = "location: %s, resource_pattern: %s, action_type: %s, agg_stage: %s" % (
-            location, self.resource_pattern, self.action_type, self.agg_stage)
-        return msg  # type: ignore
+        return f"location: {location}, resource_pattern: {self.resource_pattern}, action_type: {self.action_type}, agg_stage: {self.agg_stage}"
 
 
 class AccessCheck(common.SourceLocation):
@@ -593,8 +595,7 @@ class AccessCheck(common.SourceLocation):
         location: test.idl: (17, 4), check: get_single_user, privilege: (location: test.idl: (18, 6), resource_pattern: exact_namespace, action_type: ['find', 'insert', 'update', 'remove'], agg_stage: None
         """
         location = super(AccessCheck, self).__str__()
-        msg = "location: %s, check: %s, privilege: %s" % (location, self.check, self.privilege)
-        return msg  # type: ignore
+        return f"location: {location}, check: {self.check}, privilege: {self.privilege}"
 
 
 class AccessChecks(common.SourceLocation):
@@ -619,9 +620,7 @@ class AccessChecks(common.SourceLocation):
             return "none"
         if self.simple:
             return "simple"
-        if self.complex:
-            return "complex"
-        return "undefined"
+        return "complex" if self.complex else "undefined"
 
 
 class Command(Struct):
@@ -797,7 +796,7 @@ class FieldTypeVariant(FieldType):
 
     def debug_string(self):
         """Display this field type in error messages."""
-        return 'variant<%s>' % (', '.join(v.debug_string() for v in self.variant))
+        return f"variant<{', '.join((v.debug_string() for v in self.variant))}>"
 
 
 class Expression(common.SourceLocation):

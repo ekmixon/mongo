@@ -230,8 +230,7 @@ class Mapper:
         :return: full path of downloaded file in local filesystem
         """
 
-        tarball_full_path = download.download_from_s3(url)
-        return tarball_full_path
+        return download.download_from_s3(url)
 
     def generate_build_id_mapping(self) -> typing.Generator[typing.Dict[str, str], None, None]:
         """

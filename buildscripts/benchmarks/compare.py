@@ -109,8 +109,10 @@ def compare_data(suite: str, current: List[CedarPerfData],
 
     for test in current:
         for rollup in test.perf_rollups:
-            baseline_val = baseline_dict.get(f"{test.test_name}_{test.thread_level}_{rollup.name}",
-                                             None)
+            baseline_val = baseline_dict.get(
+                f"{test.test_name}_{test.thread_level}_{rollup.name}"
+            )
+
             percent_delta = 0
             if baseline_val:
                 percent_delta = (rollup.val - baseline_val) / baseline_val

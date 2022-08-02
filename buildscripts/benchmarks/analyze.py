@@ -25,12 +25,16 @@ def get_baseline_task_id(evg_api_config: str, current_task_id: str) -> str:
     prior_versions = evg_api.versions_by_project(current_task.project_id, start=base_version.order)
 
     for version in prior_versions:
-        baseline_task_candidate = None
         build = version.build_by_variant(current_task.build_variant)
-        for task in build.get_tasks():
-            if task.display_name == current_task.display_name:
-                baseline_task_candidate = task
-                break
+        baseline_task_candidate = next(
+            (
+                task
+                for task in build.get_tasks()
+                if task.display_name == current_task.display_name
+            ),
+            None,
+        )
+
         # If previous build doesn't contain the task with the same 'display_name'
         # assume that this is a new task and there is no baseline task
         if baseline_task_candidate is None:

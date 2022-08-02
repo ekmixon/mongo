@@ -24,10 +24,9 @@ class PathOptions:
     def is_shared_library_file(self, path: str) -> bool:
         """Check if given path points to a shared library file."""
 
-        for pattern in self.shared_library_file_patterns:
-            if pattern.match(path):
-                return True
-        return False
+        return any(
+            pattern.match(path) for pattern in self.shared_library_file_patterns
+        )
 
     def get_binary_folder_name(self, path: str) -> str:
         """Analyze path/file and return name of folder which contains that file."""

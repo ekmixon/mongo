@@ -88,9 +88,7 @@ class EvgExpansions(BaseModel):
 
     def get_max_sub_suites(self) -> int:
         """Get the max_sub_suites to use."""
-        if not self.is_patch:
-            return self.mainline_max_sub_suites
-        return self.max_sub_suites
+        return self.max_sub_suites if self.is_patch else self.mainline_max_sub_suites
 
     def build_suite_split_config(self, start_date: datetime,
                                  end_date: datetime) -> SuiteSplitConfig:
@@ -103,7 +101,7 @@ class EvgExpansions(BaseModel):
         """
         return SuiteSplitConfig(
             evg_project=self.project,
-            target_resmoke_time=self.target_resmoke_time if self.target_resmoke_time else 60,
+            target_resmoke_time=self.target_resmoke_time or 60,
             max_sub_suites=self.get_max_sub_suites(),
             max_tests_per_suite=self.max_tests_per_suite,
             start_date=start_date,
@@ -146,8 +144,7 @@ def translate_run_var(run_var: str, build_variant: Variant) -> Any:
     :param build_variant: Build variant configuration.
     :return: Value of run_var.
     """
-    match = EXPANSION_RE.search(run_var)
-    if match:
+    if match := EXPANSION_RE.search(run_var):
         value = build_variant.expansion(match.group("id"))
         if value is None:
             value = match.group("default")
@@ -227,10 +224,7 @@ class GenerateBuildVariantOrchestrator:
         run_func = task_def.generate_resmoke_tasks_command
         run_vars = run_func.get("vars", {})
 
-        repeat_suites = 1
-        if self.evg_expansions.resmoke_repeat_suites:
-            repeat_suites = self.evg_expansions.resmoke_repeat_suites
-
+        repeat_suites = self.evg_expansions.resmoke_repeat_suites or 1
         return ResmokeGenTaskParams(
             use_large_distro=run_vars.get("use_large_distro"),
             require_multiversion_setup=task_def.require_multiversion_setup(),
@@ -322,9 +316,7 @@ class GenerateBuildVariantOrchestrator:
                     tasks_to_hide.add(task_name)
 
                     run_vars = task_def.generate_resmoke_tasks_command.get("vars", {})
-                    requires_npm = run_vars.get("is_jstestfuzz", False)
-
-                    if requires_npm:
+                    if requires_npm := run_vars.get("is_jstestfuzz", False):
                         fuzzer_params = self.task_def_to_fuzzer_params(task_def, build_variant_name)
                         jobs.append(exe.submit(builder.generate_fuzzer, fuzzer_params))
                     else:
@@ -359,9 +351,7 @@ class GenerateBuildVariantOrchestrator:
         if task.display_name in gen_tasks:
             return True
         # Test out the effect of Evergreen capacity constraints.
-        if task.build_variant.endswith("-query-patch-only"):
-            return True
-        return False
+        return bool(task.build_variant.endswith("-query-patch-only"))
 
     def adjust_gen_tasks_priority(self, gen_tasks: Set[str]) -> int:
         """

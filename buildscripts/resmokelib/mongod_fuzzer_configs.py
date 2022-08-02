@@ -63,8 +63,7 @@ def generate_table_configs(rng):
 
 def generate_flow_control_parameters(rng):
     """Generate parameters related to flow control and returns a dictionary."""
-    configs = {}
-    configs["enableFlowControl"] = rng.choice([True, False])
+    configs = {"enableFlowControl": rng.choice([True, False])}
     if not configs["enableFlowControl"]:
         return configs
 
@@ -79,8 +78,7 @@ def generate_flow_control_parameters(rng):
 
 def generate_independent_parameters(rng):
     """Return a dictionary with values for each independent parameter."""
-    ret = {}
-    ret["wiredTigerCursorCacheSize"] = rng.randint(-100, 100)
+    ret = {"wiredTigerCursorCacheSize": rng.randint(-100, 100)}
     ret["wiredTigerSessionCloseIdleTimeSecs"] = rng.randint(0, 300)
     ret["wiredTigerConcurrentWriteTransactions"] = rng.randint(16, 256)
     ret["wiredTigerConcurrentReadTransactions"] = rng.randint(16, 256)

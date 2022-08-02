@@ -167,8 +167,7 @@ class TaskConfigService:
         LOGGER.info("Calculating evg_task_config values for task", task=task.name)
         task_vars = {}
         for run_task_func in POSSIBLE_RUN_TASK_FUNCS:
-            task_def = task.find_func_command(run_task_func)
-            if task_def:
+            if task_def := task.find_func_command(run_task_func):
                 task_vars = task_def.get("vars", {})
                 break
 
@@ -242,10 +241,9 @@ def _find_task(build_variant_config: Variant, task_name: str) -> Task:
     :param task_name: Name of task to get info for.
     :return: Task configuration.
     """
-    task = build_variant_config.get_task(task_name)
-    if not task:
-        task = build_variant_config.get_task(task_name + "_gen")
-    return task
+    return build_variant_config.get_task(
+        task_name
+    ) or build_variant_config.get_task(f"{task_name}_gen")
 
 
 def _remove_repo_path_prefix(file_path: str) -> str:
@@ -256,10 +254,9 @@ def _remove_repo_path_prefix(file_path: str) -> str:
     :return: Path of the changed file without prefix.
     """
     for repo_path in DEFAULT_REPO_LOCATIONS:
-        if repo_path != ".":
-            if repo_path.startswith("./"):
-                repo_path = repo_path[2:]
-                file_path = re.sub(repo_path + "/", '', file_path)
+        if repo_path != "." and repo_path.startswith("./"):
+            repo_path = repo_path[2:]
+            file_path = re.sub(f"{repo_path}/", '', file_path)
     return file_path
 
 
@@ -343,13 +340,14 @@ class SelectedTestsOrchestrator:
 
             test_mapping_task_configs = self.task_config_service.get_task_configs_for_test_mappings(
                 tests_by_task, build_variant_config)
-            task_configs.update(test_mapping_task_configs)
+            task_configs |= test_mapping_task_configs
 
         related_tasks = self.selected_tests_service.find_selected_tasks(changed_files)
         LOGGER.info("related tasks found", related_tasks=related_tasks,
                     variant=build_variant_config.name)
-        related_tasks = {task for task in related_tasks if task not in existing_tasks}
-        if related_tasks:
+        if related_tasks := {
+            task for task in related_tasks if task not in existing_tasks
+        }:
             task_mapping_task_configs = self.task_config_service.get_task_configs_for_task_mappings(
                 list(related_tasks), build_variant_config)
             # task_mapping_task_configs will overwrite test_mapping_task_configs
